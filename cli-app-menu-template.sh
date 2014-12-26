@@ -1,5 +1,4 @@
 #!/bin/bash
-# Script: avast_scan.sh
 #
 #@ Brief Description
 #@ This menu is extremely scaleable and can have nested sub-menus.
@@ -8,11 +7,11 @@
 #@ with the corresponding function.
 #@
 #@ Edit History
+#@ 2014-12-26 - f_menu_item_valid used case statements for pattern matching.
 #@ 2014-12-12 - Create script using rsync_data.sh as template.
-#@
 #@ After each edit made, update Edit History and version (date stamp string).
 #
-VERSION="2014-12-12 14:55"
+VERSION="2014-12-26 12:28"
 THIS_FILE="cli-app-menu_template.sh"
 #
 # +----------------------------------------+
@@ -320,8 +319,8 @@ f_menu_item_process () {
             # Run application program.
             f_application_run
             #
-            # MENU_ITEM_NAME="" # Null so f_application_run is not run twice
-            # APP_NAME=""       # when trying to exit sub-menus. It's a tricky loop. 
+            MENU_ITEM_NAME="" # Null so f_application_run is not run twice
+            APP_NAME=""       # when trying to exit sub-menus. It's a tricky loop. 
                                 # Also prevents checking for Quit Clause.
          fi
       fi
@@ -364,28 +363,54 @@ f_menu_item_valid () {
             # Convert MENU_ITEM_NAME to lower-case. (Sub-menus choice "MORE..." are in upper-case).
             MENU_ITEM_NAME=$(echo $MENU_ITEM_NAME | tr '[:upper:]' '[:lower:]')
             #
-            # Is MENU_ITEM a valid choice?
-            # Does MENU_ITEM_NAME contain MENU_ITEM?
-            # i.e. "nslookup" contains "nsl"*.
-            if [[ "$MENU_ITEM_NAME" == "$MENU_ITEM"* ]] ; then
-               # Alternate method: if grep -q "$MENU_ITEM"* <<< "$MENU_ITEM_NAME" ; then
-               # Valid choice, extract APP_NAME.
-                  MENU_ITEM=$MENU_ITEM_NAME
-                  APP_NAME=$MENU_ITEM_NAME
-                  let XNUM=$MAX+1  # Valid choice so force exit from While-loop.
-               # Does MENU_ITEM contain MENU_ITEM_NAME? 
-               # i.e. "nslookup www.distrowatch.com" contains "nslookup".
-               # i.e. "apt-file" does not contain "apt " ( "apt"<SPACE> ).
-            elif [[ "$MENU_ITEM" == "$MENU_ITEM_NAME "* ]] ; then 
-                  # Valid choice, extract APP_NAME.
-                  APP_NAME=$MENU_ITEM
-                  let XNUM=$MAX+1  # Valid choice so force exit from While-loop.
-            else
-                  let XNUM++  # Not valid, try next menu item, force stay in menu loop.
+            case $MENU_ITEM in
+                 [1-9] | [1-9][1-9]| [1-9][1-9][1-9])
+                 # User wants to mark the application as a "Favorite" application.
+                 # Put the application as a menu item in the "Favorites" menu.
+                 # Valid choice so force exit from While-loop.
+                 f_favorite_app_add
+                 let XNUM=$MAX+1
+                 ;;
+                 "sudo "$MENU_ITEM_NAME*)
+                 # Valid choice, contains $MENU_ITEM_NAME after "sudo".
+                 # This pattern matching statement will allow any other sudo formats
+                 # i.e. links web browser:
+                 #      "sudo links -width 80 -driver atheos -html-images 0".
+                 #
+                 APP_NAME=$MENU_ITEM
+                 # Valid choice so force exit from While-loop.
+                 let XNUM=$MAX+1
+                 ;;
+                 $MENU_ITEM_NAME" "*)
+                 # Does MENU_ITEM contain MENU_ITEM_NAME? 
+                 # i.e. "nslookup www.distrowatch.com" contains "nslookup "
+                 #                                         ("nslookup"<space>).
+                 # i.e. "apt-file" does not contain "apt " ( "apt"<SPACE> ).
+                 # elif [[ "$MENU_ITEM" == "$MENU_ITEM_NAME "* ]] ; then 
+                 # Valid choice, extract APP_NAME.
+                 APP_NAME=$MENU_ITEM
+                 let XNUM=$MAX+1  # Valid choice so force exit
+                                  # from While-loop.
+                 ;;
+            esac
+            #
+            case $MENU_ITEM_NAME in
+                 $MENU_ITEM*)
+                 # Does MENU_ITEM_NAME contain MENU_ITEM?
+                 # i.e. "nslookup" contains "nsl"*.
+                 MENU_ITEM=$MENU_ITEM_NAME
+                 APP_NAME=$MENU_ITEM_NAME
+                 let XNUM=$MAX+1  # Valid choice so force exit
+                                  # from While-loop.
+                 ;;
+            esac
+            #
+            if [ XNUM != $MAX+1 ] ; then
+               let XNUM++  # Not valid, try next menu item, force stay in
+                           # menu loop.
             fi
             #
             APP_NAME=${APP_NAME/ /_}    # Substitute "<underscore>" for "<space>" to derive function name.
-
       done
       #
       export MENU_ITEM MENU_ITEM_NAME APP_NAME
@@ -397,8 +422,8 @@ f_menu_item_valid () {
 # |       Function f_application_run       |
 # +----------------------------------------+
 #
-#  Inputs: APP_NAME.
-#    Uses: ERROR, INSTALL_ANS.
+#  Inputs: APP_NAME, MENU_ITEM.
+#    Uses: ERROR.
 # Outputs: MENU_ITEM=-1.
 #
 f_application_run () {
@@ -406,14 +431,15 @@ f_application_run () {
       # 1. Clear screen.
       # 2. Run application.
       #
-      MENU_ITEM=-1 # Force stay in menu until loop.
-      # Convert string to integer -1. Also indicates valid menu choice.
-      #
-      # clear # Blank the screen.
+      clear # Blank the screen.
       #
       f_$APP_NAME # Set $APP_NAME command with <Application name> <OPTIONS> <PARAMETERS>.
       #
-      $APP_NAME  # Run application command.
+      if [ "$MENU_ITEM" != 0 ] && [ "$MENU_ITEM" != -1 ] && [ -n "$MENU_ITEM" ] ; then
+         $APP_NAME  # Run application command.
+         #
+         f_press_enter_key_to_continue
+      fi
       #
       ERROR=$? # Save error flag condition.
       case $ERROR in
@@ -425,31 +451,32 @@ f_application_run () {
            echo
            ;;
       esac
-     #
+      #
+      MENU_ITEM=-1 # Force stay in menu until loop.
+      # Convert string to integer -1. Also indicates valid menu choice.
+      #
 } # End of function f_application_run
 #
 # +----------------------------------------+
 # |             Function f_df              |
 # +----------------------------------------+
 #
-#  Inputs: APP_NAME.
-#    Uses: ERROR, INSTALL_ANS.
-# Outputs: MENU_ITEM=-1.
+#  Inputs: None.
+#    Uses: None.
+# Outputs: APP_NAME.
 #
 f_df () {
       APP_NAME="df -hT"
       #
-     f_press_enter_key_to_continue
-     #
 } # End of function f_df
 #
 # +----------------------------------------+
 # |               Function f_top           |
 # +----------------------------------------+
 #
-#  Inputs: APP_NAME.
-#    Uses: ERROR, INSTALL_ANS.
-# Outputs: MENU_ITEM=-1.
+#  Inputs: None.
+#    Uses: None.
+# Outputs: APP_NAME.
 #
 f_top () {
       APP_NAME="top"
@@ -460,54 +487,48 @@ f_top () {
 # |              Function f_cal            |
 # +----------------------------------------+
 #
-#  Inputs: APP_NAME.
-#    Uses: ERROR, INSTALL_ANS.
-# Outputs: MENU_ITEM=-1.
+#  Inputs: None.
+#    Uses: None.
+# Outputs: APP_NAME.
 #
 f_cal () {
       APP_NAME="cal"
       #
-     f_press_enter_key_to_continue
-     #
 } # End of function f_cal
 #
 # +----------------------------------------+
 # |             Function f_uname           |
 # +----------------------------------------+
 #
-#  Inputs: APP_NAME.
-#    Uses: ERROR, INSTALL_ANS.
-# Outputs: MENU_ITEM=-1.
+#  Inputs: None.
+#    Uses: None.
+# Outputs: APP_NAME.
 #
 f_uname () {
       APP_NAME="uname -a"
       #
-     f_press_enter_key_to_continue
-     #
 } # End of function f_uname
 #
 # +----------------------------------------+
 # |              Function f_who            |
 # +----------------------------------------+
 #
-#  Inputs: APP_NAME.
-#    Uses: ERROR, INSTALL_ANS.
-# Outputs: MENU_ITEM=-1.
+#  Inputs: None.
+#    Uses: None.
+# Outputs: APP_NAME.
 #
-f_cal () {
+f_who () {
       APP_NAME="who"
       #
-     f_press_enter_key_to_continue
-     #
 } # End of function f_who
 #
 # +----------------------------------------+
 # |         Function f_edit_history        |
 # +----------------------------------------+
 #
-#  Inputs: THIS_FILE. 
+#  Inputs: None.
 #    Uses: None.
-# Outputs: None.
+# Outputs: APP_NAME.
 #
 f_edit_history () {
       clear # Blank the screen.
