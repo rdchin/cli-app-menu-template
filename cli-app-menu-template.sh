@@ -12,7 +12,7 @@
 #@ After each edit made, update Edit History and version (date stamp string).
 #
 VERSION="2014-12-26 12:28"
-THIS_FILE="cli-app-menu_template.sh"
+THIS_FILE="cli-app-menu-template.sh"
 #
 # +----------------------------------------+
 # |      Function f_initvars_menu_app      |
